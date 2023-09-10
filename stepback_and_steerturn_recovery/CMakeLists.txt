@@ -5,11 +5,14 @@ find_package(catkin REQUIRED
         COMPONENTS
             cmake_modules
             roscpp
-            tf
+            tf2
+            tf2_geometry_msgs
+            tf2_ros
             costmap_2d
             nav_core
             pluginlib
             base_local_planner
+            geometry_msgs
         )
 
 find_package(Eigen REQUIRED)

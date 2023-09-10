@@ -40,8 +40,7 @@
 #include <tf/transform_datatypes.h>
 
 // register as a RecoveryBehavior plugin
-PLUGINLIB_DECLARE_CLASS(stepback_and_steerturn_recovery, StepBackAndSteerTurnRecovery, stepback_and_steerturn_recovery::StepBackAndSteerTurnRecovery,      
-                        nav_core::RecoveryBehavior)
+PLUGINLIB_EXPORT_CLASS(stepback_and_steerturn_recovery::StepBackAndSteerTurnRecovery, nav_core::RecoveryBehavior)
 
 namespace stepback_and_steerturn_recovery
 {
@@ -62,7 +61,7 @@ StepBackAndSteerTurnRecovery::~StepBackAndSteerTurnRecovery ()
   delete world_model_;
 }
 
-void StepBackAndSteerTurnRecovery::initialize (std::string name, tf::TransformListener* tf,
+void StepBackAndSteerTurnRecovery::initialize (std::string name, tf2_ros::Buffer* tf,
                                 cmap::Costmap2DROS* global_cmap, cmap::Costmap2DROS* local_cmap)
 {
   ROS_ASSERT(!initialized_);
@@ -76,7 +75,7 @@ void StepBackAndSteerTurnRecovery::initialize (std::string name, tf::TransformLi
   */
   world_model_ = new base_local_planner::CostmapModel(*local_costmap_->getCostmap());
 
-  cmd_vel_pub_ = nh_.advertise<gm::Twist>("cmd_vel", 10);
+  cmd_vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 10);
   recover_run_pub_ = nh_.advertise<std_msgs::Bool>("recover_run", 10);
   ros::NodeHandle private_nh("~/" + name);
 
@@ -144,18 +143,18 @@ void StepBackAndSteerTurnRecovery::initialize (std::string name, tf::TransformLi
   initialized_ = true;
 }
 
-gm::Twist scaleTwist (const gm::Twist& twist, const double scale)
+geometry_msgs::Twist scaleTwist (const geometry_msgs::Twist& twist, const double scale)
 {
-  gm::Twist t;
+  geometry_msgs::Twist t;
   t.linear.x = twist.linear.x * scale;
   t.linear.y = twist.linear.y * scale;
   t.angular.z = twist.angular.z * scale;
   return t;
 }
 
-gm::Pose2D forwardSimulate (const gm::Pose2D& p, const gm::Twist& twist, const double t=1.0)
+geometry_msgs::Pose2D forwardSimulate (const geometry_msgs::Pose2D& p, const geometry_msgs::Twist& twist, const double t=1.0)
 {
-  gm::Pose2D p2;
+  geometry_msgs::Pose2D p2;
   const double linear_vel = twist.linear.x;
   p2.theta = p.theta + twist.angular.z;//*t;
   p2.x = p.x + linear_vel * cos(p2.theta)*t;
@@ -165,9 +164,9 @@ gm::Pose2D forwardSimulate (const gm::Pose2D& p, const gm::Twist& twist, const d
 }
 
 /// Return the cost of a pose, modified so that -1 does not equal infinity; instead 1e9 does.
-double StepBackAndSteerTurnRecovery::normalizedPoseCost (const gm::Pose2D& pose) const
+double StepBackAndSteerTurnRecovery::normalizedPoseCost (const geometry_msgs::Pose2D& pose) const
 {
-  gm::Point p;
+  geometry_msgs::Point p;
   p.x = pose.x;
   p.y = pose.y;
 
@@ -185,12 +184,12 @@ double StepBackAndSteerTurnRecovery::normalizedPoseCost (const gm::Pose2D& pose)
 /// d seconds if we follow twist
 /// It might also be good to have a threshold such that we're allowed to have lethal cost for at most
 /// the first k of those d seconds, but this is not done
-gm::Pose2D StepBackAndSteerTurnRecovery::getPoseToObstacle (const gm::Pose2D& current, const gm::Twist& twist) const
+geometry_msgs::Pose2D StepBackAndSteerTurnRecovery::getPoseToObstacle (const geometry_msgs::Pose2D& current, const geometry_msgs::Twist& twist) const
 {
   double cost = 0;
   cost = normalizedPoseCost(current);
   double t; // Will hold the first time that is invalid
-  gm::Pose2D current_tmp = current;
+  geometry_msgs::Pose2D current_tmp = current;
   double next_cost;
 
   ROS_DEBUG_NAMED ("top", " ");
@@ -218,18 +217,18 @@ gm::Pose2D StepBackAndSteerTurnRecovery::getPoseToObstacle (const gm::Pose2D& cu
   return current_tmp;
 }
 
-double linearSpeed (const gm::Twist& twist)
+double linearSpeed (const geometry_msgs::Twist& twist)
 {
   return sqrt(twist.linear.x*twist.linear.x + twist.linear.y*twist.linear.y);
 }
 
-double angularSpeed (const gm::Twist& twist)
+double angularSpeed (const geometry_msgs::Twist& twist)
 {
   return fabs(twist.angular.z);
 }
 
 // Scale twist so we can stop in the given time, and so it's within the max velocity
-gm::Twist StepBackAndSteerTurnRecovery::scaleGivenAccelerationLimits (const gm::Twist& twist, const double time_remaining) const
+geometry_msgs::Twist StepBackAndSteerTurnRecovery::scaleGivenAccelerationLimits (const geometry_msgs::Twist& twist, const double time_remaining) const
 {
   const double linear_speed = linearSpeed(twist);
   const double angular_speed = angularSpeed(twist);
@@ -243,18 +242,18 @@ gm::Twist StepBackAndSteerTurnRecovery::scaleGivenAccelerationLimits (const gm::
 }
 
 // Get pose in local costmap framoe
-gm::Pose2D StepBackAndSteerTurnRecovery::getCurrentLocalPose () const
+geometry_msgs::Pose2D StepBackAndSteerTurnRecovery::getCurrentLocalPose () const
 {
-  tf::Stamped<tf::Pose> p;
+  geometry_msgs::PoseStamped p;
   local_costmap_->getRobotPose(p);
-  gm::Pose2D pose;
-  pose.x = p.getOrigin().x();
-  pose.y = p.getOrigin().y();
-  pose.theta = tf::getYaw(p.getRotation());
+  geometry_msgs::Pose2D pose;
+  pose.x = p.pose.position.x;
+  pose.y = p.pose.position.y;
+  pose.theta = tf::getYaw(p.pose.orientation);
   return pose;
 }
 
-void StepBackAndSteerTurnRecovery::moveSpacifiedLength (const gm::Twist twist, const double distination, const COSTMAP_SEARCH_MODE mode) const
+void StepBackAndSteerTurnRecovery::moveSpacifiedLength (const geometry_msgs::Twist twist, const double distination, const COSTMAP_SEARCH_MODE mode) const
 {
     double distination_cmd = distination;
     double min_dist_to_obstacle = getMinimalDistanceToObstacle(mode);
@@ -318,7 +317,7 @@ void StepBackAndSteerTurnRecovery::moveSpacifiedLength (const gm::Twist twist, c
     const double frequency = 5.0;
     ros::Rate r(frequency);
 
-    const gm::Pose2D initialPose = getCurrentLocalPose();
+    const geometry_msgs::Pose2D initialPose = getCurrentLocalPose();
 
     int log_cnt = 0;
     int log_frequency = (int)obstacle_check_frequency_;
@@ -365,10 +364,10 @@ void StepBackAndSteerTurnRecovery::moveSpacifiedLength (const gm::Twist twist, c
     return;
 }
 
-double StepBackAndSteerTurnRecovery::getCurrentDiff(const gm::Pose2D initialPose, const COSTMAP_SEARCH_MODE mode) const
+double StepBackAndSteerTurnRecovery::getCurrentDiff(const geometry_msgs::Pose2D initialPose, const COSTMAP_SEARCH_MODE mode) const
 {
 
-    const gm::Pose2D& currentPose = getCurrentLocalPose();
+    const geometry_msgs::Pose2D& currentPose = getCurrentLocalPose();
     ROS_DEBUG_NAMED ("top", "current pose (%.2f, %.2f, %.2f)", currentPose.x,
                        currentPose.y, currentPose.theta);
 
@@ -393,7 +392,7 @@ double StepBackAndSteerTurnRecovery::getCurrentDiff(const gm::Pose2D initialPose
     return current_diff;
 }
 
-double StepBackAndSteerTurnRecovery::getCurrentDistDiff(const gm::Pose2D initialPose, const double distination, COSTMAP_SEARCH_MODE mode) const
+double StepBackAndSteerTurnRecovery::getCurrentDistDiff(const geometry_msgs::Pose2D initialPose, const double distination, COSTMAP_SEARCH_MODE mode) const
 {
     const double dist_diff = distination - getCurrentDiff(initialPose, mode);
     ROS_DEBUG_NAMED ("top", "dist_diff = %.2f", dist_diff);
@@ -404,7 +403,7 @@ double StepBackAndSteerTurnRecovery::getCurrentDistDiff(const gm::Pose2D initial
 double StepBackAndSteerTurnRecovery::getMinimalDistanceToObstacle(const COSTMAP_SEARCH_MODE mode) const
 {
     double max_angle, min_angle;
-    gm::Twist twist = TWIST_STOP;
+    geometry_msgs::Twist twist = TWIST_STOP;
 
     switch (mode) {
     case FORWARD:
@@ -431,13 +430,13 @@ double StepBackAndSteerTurnRecovery::getMinimalDistanceToObstacle(const COSTMAP_
         break;
     }
 
-    const gm::Pose2D& current = getCurrentLocalPose();
+    const geometry_msgs::Pose2D& current = getCurrentLocalPose();
     double min_dist = INFINITY;
 
     for(double angle = min_angle; angle < max_angle; angle+=sim_angle_resolution_)
       {
           twist.angular.z = angle;
-          gm::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
+          geometry_msgs::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
           double dist_to_obstacle = getDistBetweenTwoPoints(current, pose_to_obstacle);
 
           if(dist_to_obstacle < min_dist)
@@ -452,9 +451,9 @@ double StepBackAndSteerTurnRecovery::getMinimalDistanceToObstacle(const COSTMAP_
 int StepBackAndSteerTurnRecovery::determineTurnDirection()
 {
     // simulate and evaluate cost
-    const gm::Pose2D& current = getCurrentLocalPose();
+    const geometry_msgs::Pose2D& current = getCurrentLocalPose();
 
-    gm::Twist twist = TWIST_STOP;
+    geometry_msgs::Twist twist = TWIST_STOP;
     twist.linear.x = linear_vel_forward_;
 
     vector<double> dist_to_obstacle_r;
@@ -464,7 +463,7 @@ int StepBackAndSteerTurnRecovery::determineTurnDirection()
     for(double angle = min; angle < max; angle+=sim_angle_resolution_)
     {
         twist.angular.z = angle;
-        gm::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
+        geometry_msgs::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
         double dist_to_obstacle = getDistBetweenTwoPoints(current, pose_to_obstacle);
 
         ROS_DEBUG_NAMED ("top", "(%.2f, %.2f, %.2f) for %.2f [m] to obstacle",
@@ -509,7 +508,7 @@ int StepBackAndSteerTurnRecovery::determineTurnDirection()
     return ret_val;
 }
 
-double StepBackAndSteerTurnRecovery::getDistBetweenTwoPoints(const gm::Pose2D pose1, const gm::Pose2D pose2) const
+double StepBackAndSteerTurnRecovery::getDistBetweenTwoPoints(const geometry_msgs::Pose2D pose1, const geometry_msgs::Pose2D pose2) const
 {
     double dist_to_obstacle = (pose1.x - pose2.x) * (pose1.x - pose2.x) +
             (pose1.y - pose2.y) * (pose1.y - pose2.y);
@@ -538,7 +537,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
       ROS_INFO_NAMED ("top", "==== %d th recovery trial ====", cnt);
 
       // Figure out how long we can safely run the behavior
-      const gm::Pose2D& initialPose = getCurrentLocalPose();
+      const geometry_msgs::Pose2D& initialPose = getCurrentLocalPose();
 
       // initial pose
       ROS_DEBUG_NAMED ("top", "initial pose (%.2f, %.2f, %.2f)", initialPose.x,
@@ -581,7 +580,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
 
       // clear way
       //-- first steering
-      gm::Twist twist;
+      geometry_msgs::Twist twist;
       twist = TWIST_STOP;
       twist.linear.x = linear_vel_steer_;
       twist.angular.z = z;
@@ -619,7 +618,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
       }
 
       // check clearance forward
-      const  gm::Pose2D& current = getCurrentLocalPose();
+      const  geometry_msgs::Pose2D& current = getCurrentLocalPose();
       double max_angle = 0.1;
       double min_angle = -max_angle;
       double max_clearance = 0;
@@ -627,7 +626,7 @@ void StepBackAndSteerTurnRecovery::runBehavior ()
       for(double angle = min_angle; angle < max_angle; angle+=sim_angle_resolution_)
       {
           twist.angular.z = angle;
-          gm::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
+          geometry_msgs::Pose2D pose_to_obstacle = getPoseToObstacle(current, twist);
           double dist_to_obstacle = getDistBetweenTwoPoints(current, pose_to_obstacle);
 
           if(dist_to_obstacle > max_clearance)

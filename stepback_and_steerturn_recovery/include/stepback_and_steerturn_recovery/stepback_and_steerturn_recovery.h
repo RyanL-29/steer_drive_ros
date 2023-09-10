@@ -42,10 +42,11 @@
 #include <nav_core/recovery_behavior.h>
 #include <base_local_planner/costmap_model.h>
 #include <costmap_2d/costmap_2d_ros.h>
-#include <geometry_msgs/Pose2D.h>
 #include <std_msgs/Bool.h>
+#include <tf2_ros/buffer.h>
+#include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/Twist.h>
 
-namespace gm=geometry_msgs;
 namespace cmap=costmap_2d;
 namespace blp=base_local_planner;
 using std::vector;
@@ -66,7 +67,7 @@ public:
   ~StepBackAndSteerTurnRecovery();
 
   /// Initialize the parameters of the behavior
-  void initialize (std::string n, tf::TransformListener* tf,
+  void initialize (std::string n, tf2_ros::Buffer* tf,
                    costmap_2d::Costmap2DROS* global_costmap,
                    costmap_2d::Costmap2DROS* local_costmap);
 
@@ -95,19 +96,19 @@ private:
   };
   static const int CNT_TURN = 2;
 
-  gm::Twist TWIST_STOP;
+  geometry_msgs::Twist TWIST_STOP;
 
-  gm::Pose2D getCurrentLocalPose () const;
-  gm::Twist scaleGivenAccelerationLimits (const gm::Twist& twist, const double time_remaining) const;
-  gm::Pose2D getPoseToObstacle (const gm::Pose2D& current, const gm::Twist& twist) const;
-  double normalizedPoseCost (const gm::Pose2D& pose) const;
-  gm::Twist transformTwist (const gm::Pose2D& pose) const;
-  void moveSpacifiedLength (const gm::Twist twist, const double length, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
-  double getCurrentDiff(const gm::Pose2D initialPose, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
-  double getCurrentDistDiff(const gm::Pose2D initialPose, const double distination, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
+  geometry_msgs::Pose2D getCurrentLocalPose () const;
+  geometry_msgs::Twist scaleGivenAccelerationLimits (const geometry_msgs::Twist& twist, const double time_remaining) const;
+  geometry_msgs::Pose2D getPoseToObstacle (const geometry_msgs::Pose2D& current, const geometry_msgs::Twist& twist) const;
+  double normalizedPoseCost (const geometry_msgs::Pose2D& pose) const;
+  geometry_msgs::Twist transformTwist (const geometry_msgs::Pose2D& pose) const;
+  void moveSpacifiedLength (const geometry_msgs::Twist twist, const double length, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
+  double getCurrentDiff(const geometry_msgs::Pose2D initialPose, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
+  double getCurrentDistDiff(const geometry_msgs::Pose2D initialPose, const double distination, const COSTMAP_SEARCH_MODE mode = FORWARD) const;
   double getMinimalDistanceToObstacle(const COSTMAP_SEARCH_MODE mode) const;
   int determineTurnDirection();
-  double getDistBetweenTwoPoints(const gm::Pose2D pose1, const gm::Pose2D pose2) const;
+  double getDistBetweenTwoPoints(const geometry_msgs::Pose2D pose1, const geometry_msgs::Pose2D pose2) const;
 
 
   ros::NodeHandle nh_;
@@ -115,7 +116,7 @@ private:
   costmap_2d::Costmap2DROS* local_costmap_;
   costmap_2d::Costmap2D costmap_; // Copy of local_costmap_, used by world model
   std::string name_;
-  tf::TransformListener* tf_;
+  tf2_ros::Buffer* tf_;
   ros::Publisher cmd_vel_pub_;
   ros::Publisher recover_run_pub_;
   bool initialized_;
@@ -124,7 +125,7 @@ private:
   // Mutable because footprintCost is not declared const
   mutable base_local_planner::CostmapModel* world_model_;
 
-  gm::Twist base_frame_twist_;
+  geometry_msgs::Twist base_frame_twist_;
   
   double duration_;
   double linear_speed_limit_;
